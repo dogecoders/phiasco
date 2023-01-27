@@ -5,7 +5,7 @@ Simple PHP framework for building RESTful APIs.
 ## Installation
 
 ```bash
-composer require devlulcas/phiasco
+composer require dogecoders/phiasco
 ```
 
 ## Usage
