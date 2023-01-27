@@ -1,0 +1,11 @@
+{
+    "name": "devlulcas/phiasco",
+    "description": "PHP attributes based router",
+    "authors": [
+        {
+            "name": "lucas rego",
+            "email": "lucasalvesrego.contato@gmail.com"
+        }
+    ],
+    "require": {}
+}
