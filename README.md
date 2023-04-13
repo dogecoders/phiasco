@@ -13,22 +13,35 @@ composer require dogecoders/phiasco
 ```php
 <?php
 
-use \Psr\Http\Message\ServerRequestInterface as Request;
+declare(strict_types=1);
 
+require __DIR__ . '/vendor/autoload.php';
+
+use \Phiasco\Http\Attributes\Route;
+use \Phiasco\Http\Router;
 use \Psr\Http\Message\ResponseInterface as Response;
+use \Psr\Http\Message\ServerRequestInterface as Request;
+use \Slim\Psr7\Factory\ResponseFactory;
 
-require '../vendor/autoload.php';
+#[Route(path: '/app')]
+class IndexController
+{
+    #[Route(path: '/')]
+    public function index(Request $req): Response
+    {
+        $responseFactory = new ResponseFactory();
+        $response = $responseFactory->createResponse();
+        $response->getBody()->write('Hello World!');
 
-class Controller {
-  #[Route('/')]
-  public function get(Request $req): Response 
-  {
-    $res = new Response();
-
-    $res->getBody()->write('Hello World!');
-
-    return $res;
-  }
+        return $response;
+    }
 }
+
+$router = new Router(url: 'http://localhost:8000');
+
+$router->addController(IndexController::class);
+
+$router->dispatch();
 ```
 
+OBS: PHP namespaces are making me sad.

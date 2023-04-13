@@ -1,99 +1,53 @@
 <?php
 
-#[Attribute]
-class Route
+declare(strict_types=1);
+
+require __DIR__ . '/vendor/autoload.php';
+
+use Phiasco\Http\Attributes\Route;
+use Phiasco\Http\Router;
+use Psr\Http\Message\ResponseInterface as Response;
+use Psr\Http\Message\ServerRequestInterface as Request;
+use Slim\Psr7\Factory\ResponseFactory;
+
+// EXAMPLE
+
+#[Route(path: '/hello')]
+class IndexController
 {
-    private static array $routes = [];
-    private string $path;
-    private array $methods;
-
-    public function __construct(string $path, array $methods)
+    #[Route(path: '/')]
+    public function helloWorld(Request $req): Response
     {
-        $this->path = $path;
-        $this->methods = $methods;
+        $responseFactory = new ResponseFactory();
+        $response = $responseFactory->createResponse();
+        $response->getBody()->write('Hello World!');
 
-        self::$routes[] = $this;
-
-        foreach ($this->methods as $value) {
-            $this->addRoute($value, $this->path);
-        }
+        return $response;
     }
 
-    public function getPath(): string
+    #[Route(path: '/{name}')]
+    public function sayName(Request $req, string $name): Response
     {
-        return $this->path;
+        $responseFactory = new ResponseFactory();
+        $response = $responseFactory->createResponse();
+        $response->getBody()->write("Hello {$name}!");
+
+        return $response;
     }
 
-    public function getRoutes(): array
+    #[Route(path: '/{name}', methods: ['POST'])]
+    public function sayNameButWithPost(Request $req, string $name): Response
     {
-        return self::$routes;
-    }
+        $responseFactory = new ResponseFactory();
+        $response = $responseFactory->createResponse();
+        $response->getBody()->write("Hello {$name}! This is a POST request.");
 
-    private function addRoute(string $method, string $route, array $params = [])
-    {
-        // VARIÁVEIS DA ROTA
-        $params['variables'] = [];
-
-        // PADRÃO DE VALIDAÇÃO DAS VARIÁVEIS DAS ROTAS
-        $patternVariable = '/{(.*?)}/';
-        if (preg_match_all($patternVariable, $route, $matches)) {
-            $route = preg_replace($patternVariable, '(.*?)', $route);
-            $params['variables'] = $matches[1];
-        }
-
-        $route = rtrim($route, '/');
-
-        // PADRÃO DE VALIDAÇÃO DA URL
-        $patternRoute = '/^' . str_replace('/', '\/', $route) . '$/';
-
-        // ADICIONA A ROTA DENTRO DA CLASSE
-        $this->routes[$patternRoute][$method] = $params;
+        return $response;
     }
 }
 
-#[RouteGroup("/user", as: "resource.user")]
-class Controller
-{
-    #[Route(path: "/", methods: ["GET"])]
-    public function list()
-    {
-        echo "List";
-    }
+$router = new Router(url: 'http://localhost:8000');
 
-    #[Route(path: "/create",  methods: ["POST"])]
-    public function create()
-    {
-        echo "Create";
-    }
+$router->addController(IndexController::class);
 
-
-    #[Route(path: "/update/{id}",  methods: ["PUT", "PATCH"])]
-    public function update(int $id)
-    {
-        echo "Update $id";
-    }
-}
-
-function dumpAttributeData(mixed $controllerClass)
-{
-    $reflection = new ReflectionClass($controllerClass);
-
-    $methods = $reflection->getMethods();
-
-    foreach ($methods as $method) {
-        $controllerFn = new ReflectionMethod($reflection->getName(), $method->getName());
-
-        $params = $controllerFn->getParameters();
-
-        $attributes = $method->getAttributes();
-
-        foreach ($attributes as $attribute) {
-            $routes = $attribute->newInstance()->getRoutes();
-            echo '<pre>';
-            print_r($attribute->newInstance()->getPath());
-            echo '</pre>';
-        }
-    }
-}
-
-dumpAttributeData(Controller::class);
+$router->dispatch();
