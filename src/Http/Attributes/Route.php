@@ -30,7 +30,7 @@ class Route
 
         $this->path = preg_replace_callback($paramPattern, function ($matches) {
             // Push paramenter name to params array '{id}' => ['id']
-            $this->params[] = $matches[1];
+            $this->params[$matches[1]] = null;
 
             // Replace parameter with regex
             return '([a-zA-Z0-9]+)';

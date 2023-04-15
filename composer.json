@@ -10,8 +10,10 @@
     "scripts": {
         "dev": "php -S localhost:8000"
     },
-    "psr-4": {
-        "Phiasco\\": "src/"
+    "autoload": {
+        "psr-4": {
+            "Phiasco\\": "src/"
+        }
     },
     "require": {
         "slim/psr7": "^1.6"

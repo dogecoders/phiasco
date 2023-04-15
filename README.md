@@ -44,4 +44,4 @@ $router->addController(IndexController::class);
 $router->dispatch();
 ```
 
-OBS: PHP namespaces are making me sad.
+OBS: HEAVY WIP

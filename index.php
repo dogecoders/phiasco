@@ -15,7 +15,7 @@ use Slim\Psr7\Factory\ResponseFactory;
 #[Route(path: '/hello')]
 class IndexController
 {
-    #[Route(path: '/')]
+    #[Route(path: '/', methods: ['GET', 'HEAD'])]
     public function helloWorld(Request $req): Response
     {
         $responseFactory = new ResponseFactory();
@@ -25,7 +25,7 @@ class IndexController
         return $response;
     }
 
-    #[Route(path: '/{name}')]
+    #[Route(path: '/{name}', methods: ['GET'])]
     public function sayName(Request $req, string $name): Response
     {
         $responseFactory = new ResponseFactory();

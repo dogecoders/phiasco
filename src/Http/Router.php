@@ -56,7 +56,7 @@ class Router
      */
     public function addController(string $controller): void
     {
-        $this->routes[] = $this->getRoutesFromController($controller);
+        $this->getRoutesFromController($controller);
     }
 
     /**
@@ -70,11 +70,11 @@ class Router
     /**
      * Extracts the routes from the controller and returns them as an array
      */
-    private function getRoutesFromController(string $controllerClass): array
+    private function getRoutesFromController(string $controllerClass)
     {
         $controllerReflection = new \ReflectionClass($controllerClass);
 
-        $controllerAttributes = $controllerReflection->getAttributes(Route::class);
+        $controllerAttributes = $controllerReflection->getAttributes();
 
         // The controller must have a Route attribute to be a route group
         if (count($controllerAttributes) === 0) {
@@ -83,25 +83,18 @@ class Router
 
         $controllerAsRouteGroup = $controllerAttributes[0]->newInstance();
 
-        if (!($controllerAsRouteGroup instanceof Route)) {
-            throw new PhiascoUndefinedRouteGroup($controllerClass);
-        }
-
         // We will use the controller's path as the root path
         $rootPath = $controllerAsRouteGroup->path;
 
         // The handler is defined if some of the sub-routes have a path equals to the root route regex
-        $routeGroups[$rootPath] = [
+        $this->routes[$rootPath] = [
             'controller' => $controllerClass,
-            'methods' => $controllerAsRouteGroup->methods,
-            'handler' => null,
-            'sub-routes' => [],
+            'handlers' => [],
         ];
 
-        // Define the routes with the controller methods as handlers
         foreach ($controllerReflection->getMethods() as $method) {
             // Controller Route Attribute
-            $routeAttributes = $method->getAttributes(Route::class);
+            $routeAttributes = $method->getAttributes();
 
             // No attribute === No route === No handler
             if (count($routeAttributes) === 0) {
@@ -110,25 +103,13 @@ class Router
 
             $controllerMethodAsRoute = $routeAttributes[0]->newInstance();
 
-            // Match the route path with the root route regex to define the root handler
-            if ($controllerMethodAsRoute->path === $this::ROOT_ROUTE_REGEX) {
-                // Overrides the root handler
-                $routeGroups[$rootPath]['handler'] = $method->getName();
-                // Overrides the root methods
-                $routeGroups[$rootPath]['methods'] = $controllerMethodAsRoute->methods;
-                continue;
+            foreach ($controllerMethodAsRoute->methods as $httpMethod) {
+                $this->routes[$rootPath]['handlers'][$httpMethod][$controllerMethodAsRoute->path] = [
+                    'handler' => $method->getName(),
+                    'params' => $controllerMethodAsRoute->params,
+                ];
             }
-
-            // If the route has a path, it's a sub-route of the controller
-            $routeGroups[$rootPath]['sub-routes'][$controllerMethodAsRoute->path] = [
-                'methods' => $controllerMethodAsRoute->methods,
-                'params' => $controllerMethodAsRoute->params,
-                // The controller method is the handler
-                'handler' => $method->getName(),
-            ];
         }
-
-        return $routeGroups;
     }
 
     private function getUriWithoutPrefix(): string
@@ -146,59 +127,75 @@ class Router
         $httpMethod = $this->request->getMethod();
 
         foreach ($this->routes as $routeGroupPath => $routeGroup) {
-            // Check if the route group supports the HTTP method
-            if (!in_array($httpMethod, $routeGroup["methods"])) {
+            $supportHttpMethod = array_key_exists($httpMethod, $routeGroup['handlers']);
+
+            // If the HTTP method is not supported, we will try the next route group
+            if (!$supportHttpMethod) {
                 continue;
             }
 
-            // First, try the root route
-            if (preg_match($routeGroupPath, $uri) && isset($routeGroup['handler'])) {
-                // Then use the root handler
-                $controller = new $routeGroup['controller']();
+            $matchesRoot = preg_match($routeGroupPath, $uri, $matches);
 
-                $handlerReturn = $controller->{$routeGroup['handler']}($this->request);
+            echo "<pre>";
+            print_r([
+                'uri' => $uri,
+                'routeGroupPath' => $routeGroupPath,
+                'matchesRoot' => $matchesRoot,
+                'matches' => $matches,
+            ]);
+            echo "</pre>";
+            die;
+
+
+            // If the URI doesn't match the route group path, we will try the next route group
+            if (!$matchesRoot) {
+                continue;
+            }
+
+            // Now we can create the controller
+            $controller = new $routeGroup['controller']();
+
+            // And get the sub-routes
+            $subRoutes = $routeGroup['handlers'][$httpMethod];
+
+            $params = [];
+
+            $uri = preg_replace($routeGroupPath, '', $uri);
+
+            foreach ($subRoutes as $subRoutePath => $subRoute) {
+                if ($subRoutePath === self::ROOT_ROUTE_REGEX) {
+                    // ! DEBUG
+                    $handlerReturn = $controller->{$subRoute['handler']}($this->request, ...$params);
+                    echo "<pre>";
+                    print_r($handlerReturn);
+                    echo "</pre>";
+                    die;
+                }
+
+                // If the sub-route path doesn't match the URI, we will try the next sub-route
+                if (!preg_match($subRoutePath, $uri, $matches)) {
+                    continue;
+                }
+
+                echo "<pre>";
+                print_r($matches);
+                echo "</pre>";
+                die;
+
+
+                // If the sub-route path matches the URI, we will get the params
+                foreach ($subRoute['params'] as $position => $name) {
+                    $params[$name] = trim($matches[$position], '/');
+                }
+
+                // And finally we will call the handler
+                $handlerReturn = $controller->{$subRoute['handler']}($this->request, ...$params);
 
                 // ! DEBUG
                 echo "<pre>";
                 print_r($handlerReturn);
                 echo "</pre>";
                 die;
-
-            }
-
-            // Check if a piece of the URI matches the route group path
-            $xUri = explode('/', $uri);
-            $headOfTheUri = array_shift($xUri);
-            $tailOfTheUri = implode('/', $xUri);
-
-            if (!preg_match($routeGroupPath, $headOfTheUri)) {
-                continue;
-            }
-
-            // Then we will try to match the sub-routes
-            foreach ($routeGroup['sub-routes'] as $subRoutePath => $subRoute) {
-                if (!in_array($httpMethod, $subRoute['methods'])) {
-                    continue;
-                }
-
-                // ! That doesn't work yet
-                if (preg_match($subRoutePath, $tailOfTheUri, $matches)) {
-                    $controller = new $routeGroup['controller']();
-
-                    $params = [];
-
-                    foreach ($subRoute['params'] as $position => $name) {
-                        $params[$name] = trim($matches[$position], '/');
-                    }
-
-                    $handlerReturn = $controller->{$subRoute['handler']}($this->request, ...$params);
-
-                    // ! DEBUG
-                    echo "<pre>";
-                    print_r($handlerReturn);
-                    echo "</pre>";
-                    die;
-                }
             }
         }
 
